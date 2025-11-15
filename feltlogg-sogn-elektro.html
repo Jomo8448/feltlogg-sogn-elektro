@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <title>Feltlogg – Sogn Elektro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .sub {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 24px;
+    }
+    button {
+      font-size: 22px;
+      padding: 20px 36px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #22c55e;
+      color: #022c22;
+      font-weight: 600;
+    }
+    button.recording {
+      background: #ef4444;
+      color: #fee2e2;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 15px;
+      min-height: 1.5em;
+    }
+  </style>
+</head>
+<body>
+  <h1>Feltlogg</h1>
+  <div class="sub">Sogn Elektro · telefonlead</div>
+
+  <button id="recordBtn">🎙️ Start opptak</button>
+  <div id="status">Klar – trykk knappen og snakk stikkord.</div>
+
+  <script>
+    // 🔗 BYTT TIL DIN WEBHOOK OM DEN ENDRES SENARE
+    const WEBHOOK_URL = "https://hook.eu1.make.com/iadjvoh1k22wrdb6xldk661v77ghj5dn";
+
+    // Sett dette til montør-namn om du vil ha faste filer per brukar
+    const DEFAULT_USER_NAME = "Montør";
+    const DEFAULT_PRODUCER = "Sogn Elektro";
+
+    const recordBtn = document.getElementById("recordBtn");
+    const statusEl = document.getElementById("status");
+
+    let mediaRecorder = null;
+    let chunks = [];
+    let isRecording = false;
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: "audio/webm" });
+          chunks = [];
+
+          statusEl.textContent = "Sender lyd til systemet...";
+          recordBtn.disabled = true;
+
+          const formData = new FormData();
+          formData.append("audio", blob, "feltlogg.webm");
+          formData.append("producer", DEFAULT_PRODUCER);
+          formData.append("user_name", DEFAULT_USER_NAME);
+
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", WEBHOOK_URL, true);
+
+          xhr.onload = function () {
+            statusEl.textContent = "✅ Lead sendt. Du kan legge på.";
+            recordBtn.disabled = false;
+          };
+
+          xhr.onerror = function () {
+            statusEl.textContent = "❌ Klarte ikkje å sende (sjekk nett).";
+            recordBtn.disabled = false;
+          };
+
+          xhr.send(formData);
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        recordBtn.textContent = "⏹️ Stopp og send";
+        recordBtn.classList.add("recording");
+        statusEl.textContent = "Opptak pågår – sei namn, telefon, kva dei vil, og evt. hastegrad.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "❌ Får ikkje tilgang til mikrofon. Sjekk rettar.";
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.textContent = "🎙️ Start opptak";
+        recordBtn.classList.remove("recording");
+        statusEl.textContent = "Stoppar opptak…";
+      }
+    }
+
+    recordBtn.addEventListener("click", () => {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    });
+  </script>
+</body>
+</html>
